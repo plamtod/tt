@@ -16,10 +16,3 @@ aa
 aaaaaaaaaaaaaaaaaaaa
 MAIN
 
-
-
-bbbbbbbbbbbbbbbb
-=======
-vvac v
-
-
