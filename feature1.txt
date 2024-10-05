@@ -6,6 +6,7 @@ feature1
 feature2S3123456714
 
 
+<<<<<<< HEAD
 
 
 
@@ -13,7 +14,7 @@ feature2S3123456714
 
 
 vvac v
-<<<<<<< HEAD
+
 aa
 
 
@@ -30,5 +31,6 @@ FFFFFFF
 
 
 zz
+
 
 
