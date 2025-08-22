@@ -1,53 +1,15 @@
 m1
 m2
-.ConfigureServices((context, services) =>
-{
-    services.AddScoped<IRepository<FsriUpdateSync>, FsriUpdateSyncRepository>();
-
-    services.AddApplicationInsightsTelemetryWorkerService();
-    services.PostConfigure<DependencyTrackingTelemetryModule>(telemetryConfiguration =>
-    telemetryConfiguration.EnableSqlCommandTextInstrumentation = true);
-    services.ConfigureFunctionsApplicationInsights();
+namespace Microsoft.ApplicationInsights.DependencyCollector;
 
     var isLocalEnvironment = (bool)context.Properties[isLocalEnv];
     Log.LogEnvironment(startupLogger, context.HostingEnvironment.EnvironmentName);
-
-    services.AddScoped(provider =>
-    {
-        var connectionString = context.Configuration.GetConnectionString("Workflow");
-        if (isLocalEnvironment)
-        {
-            connectionString += ";Authentication=\"Active Directory Default\"";
-        }
-        else
-        {
-            connectionString += $";User ID={context.Configuration[managedIdentityId]};Authentication=ActiveDirectoryManagedIdentity";
-        }
-
-        Log.LogConnectionString(startupLogger, connectionString);
-
-        var baseOptions = new DataOptions().UseSqlServer(connectionString);
-        var typedOptions = new DataOptions<WorkflowDataConnection>(baseOptions);
-
-        return new WorkflowDataConnection(typedOptions);
-    });
-
-    services.AddSingleton(provider =>
-    {
-        var telemetryClient = provider.GetRequiredService<TelemetryClient>();
-        return new TelemetryHelper(telemetryClient, null);
-    });
-
-    services.SetupConfigurations(context.Configuration, startupLogger);
-    services.AddScoped<Bg.MetricsCollectionService>();
-    services.AddScoped<Bg.PhoenixErrorHandlingService>();
-
-    var customRoleName = context.Configuration["AzFunctionRoleName"] ?? "TimerAzureFunction";
-    services.TryAddSingleton<ITelemetryInitializer>(new CustomRoleNameTelemetryInitializer(customRoleName));
-})
-
-    var isLocalEnvironment = (bool)context.Properties[isLocalEnv];
-    Log.LogEnvironment(startupLogger, context.HostingEnvironment.EnvironmentName);
+   <PackageVersion Include="linq2db" Version="5.4.1" />
+    <PackageVersion Include="linq2db.AspNet" Version="5.4.1" />
+    <PackageVersion Include="linq2db.SqlServer" Version="5.4.1" />
+    <PackageVersion Include="linq2db.SqlServer.Extensions" Version="0.2.0" />
+    <PackageVersion Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.23.0" />
+    <PackageVersion Include="Microsoft.ApplicationInsights.WorkerService" Version="2.23.0" />
 
  "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')),
       '2021-09-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
