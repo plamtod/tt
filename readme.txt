@@ -1,12 +1,7 @@
 m1
 m2
-.ConfigureServices((context, services) =>
-{
-    services.AddScoped<IRepository<FsriUpdateSync>, FsriUpdateSyncRepository>();
-
-    services.PostConfigure<DependencyTrackingTelemetryModule>(telemetryConfiguration => telemetryConfiguration.EnableSqlCommandTextInstrumentation = true);
-    services.AddApplicationInsightsTelemetryWorkerService();
-    services.ConfigureFunctionsApplicationInsights();
+Name: APPLICATIONINSIGHTS_ENABLE_SQL_COMMAND_TEXT_INSTRUMENTATION
+Value: true
 
     var isLocalEnvironment = (bool)context.Properties[isLocalEnv];
     Log.LogEnvironment(startupLogger, context.HostingEnvironment.EnvironmentName);
