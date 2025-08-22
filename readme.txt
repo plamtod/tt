@@ -1,7 +1,50 @@
 m1
 m2
-Name: APPLICATIONINSIGHTS_ENABLE_SQL_COMMAND_TEXT_INSTRUMENTATION
-Value: true
+.ConfigureServices((context, services) =>
+{
+    services.AddScoped<IRepository<FsriUpdateSync>, FsriUpdateSyncRepository>();
+
+    services.AddApplicationInsightsTelemetryWorkerService();
+    services.PostConfigure<DependencyTrackingTelemetryModule>(telemetryConfiguration =>
+    telemetryConfiguration.EnableSqlCommandTextInstrumentation = true);
+    services.ConfigureFunctionsApplicationInsights();
+
+    var isLocalEnvironment = (bool)context.Properties[isLocalEnv];
+    Log.LogEnvironment(startupLogger, context.HostingEnvironment.EnvironmentName);
+
+    services.AddScoped(provider =>
+    {
+        var connectionString = context.Configuration.GetConnectionString("Workflow");
+        if (isLocalEnvironment)
+        {
+            connectionString += ";Authentication=\"Active Directory Default\"";
+        }
+        else
+        {
+            connectionString += $";User ID={context.Configuration[managedIdentityId]};Authentication=ActiveDirectoryManagedIdentity";
+        }
+
+        Log.LogConnectionString(startupLogger, connectionString);
+
+        var baseOptions = new DataOptions().UseSqlServer(connectionString);
+        var typedOptions = new DataOptions<WorkflowDataConnection>(baseOptions);
+
+        return new WorkflowDataConnection(typedOptions);
+    });
+
+    services.AddSingleton(provider =>
+    {
+        var telemetryClient = provider.GetRequiredService<TelemetryClient>();
+        return new TelemetryHelper(telemetryClient, null);
+    });
+
+    services.SetupConfigurations(context.Configuration, startupLogger);
+    services.AddScoped<Bg.MetricsCollectionService>();
+    services.AddScoped<Bg.PhoenixErrorHandlingService>();
+
+    var customRoleName = context.Configuration["AzFunctionRoleName"] ?? "TimerAzureFunction";
+    services.TryAddSingleton<ITelemetryInitializer>(new CustomRoleNameTelemetryInitializer(customRoleName));
+})
 
     var isLocalEnvironment = (bool)context.Properties[isLocalEnv];
     Log.LogEnvironment(startupLogger, context.HostingEnvironment.EnvironmentName);
