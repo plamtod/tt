@@ -6,6 +6,9 @@ using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Bg = CrewPortal.BackgroundServices.Services;
 
+ // Enable linq2db trace events for Application Insights
+   15     LinqToDB.Data.DataConnection.TurnOnTraceSwitch(System.Diagnostics.TraceLevel.Info);
+
 const string isLocalEnv = "IsLocalEnvironment";
 const string managedIdentityId = "BackgroundServices_Identity_ClientID";
 
