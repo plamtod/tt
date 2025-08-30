@@ -35,3 +35,19 @@ public class MyOrder
    27         );
    28
    29
+
+
+    1 {
+    2   "IsEncrypted": false,
+    3   "Values": {
+    4     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    5     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    6     "ServiceBusConnection":
+      "Endpoint=sb://your-namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-secret-k
+      ey",
+    7     "MyCustomAppSetting": "some-value-for-my-app"
+    8   },
+    9   "Host": {
+   10     "CORS": "*"
+   11   }
+   12 }
