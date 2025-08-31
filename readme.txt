@@ -1,37 +1,15 @@
- public class ServiceBusMessage
- {
-     /// <summary>
-     /// Time set by the sender
-     /// </summary>
-     public DateTime Date { get; set; }
-
-     /// <summary>
-     /// Unique identifier which can correlate the producer and the consumer. Format is agreed by them.
-     /// </summary>
-     public string Reference { get; set; }
-
-     /// <summary>
-     /// The name of the sending system.
-     /// </summary>
-     public string Sender { get; set; }
-
-     /// <summary>
-     /// Name of the operation
-     /// </summary>
-     public string Event { get; set; }
-
-     /// <summary>
-     /// Current status of the operation.
-     /// </summary>
-     public string Status { get; set; }
- }
-
- public class ServiceBusMessage<T> : ServiceBusMessage
- {
-     /// <summary>
-     /// The paylod the sender decided to send. Json format with PascalCase properties.
-     /// </summary>
-     public T Payload { get; set; }
- }
-
- var deserializedMessage = JsonSerializer.Deserialize<ServiceBusMessage<List<KeyValue>>>(servicebusreceivedmessage.Body().ToString)
+ var testPayload = new List<KeyValue>
+   15     {
+   16         new KeyValue { Key = "ID", Value = "12345" }
+   17     };
+   18
+   19     // Create the full message envelope object
+   20     var messageEnvelope = new ServiceBusMessage<List<KeyValue>>
+   21     {
+   22         Date = DateTime.UtcNow,
+   23         Reference = "test-ref",
+   24         Sender = "my-test",
+   25         Event = "TestEvent",
+   26         Status = "Complete",
+   27         Payload = testPayload // Set the payload here
+   28     };
