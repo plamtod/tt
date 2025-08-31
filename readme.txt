@@ -1,53 +1,37 @@
-public class MyOrder
-   2 {
-   3     public string OrderId { get; set; }
-   4     public int Quantity { get; set; }
-   5 }
+ public class ServiceBusMessage
+ {
+     /// <summary>
+     /// Time set by the sender
+     /// </summary>
+     public DateTime Date { get; set; }
 
-  2. A sample unit test method (using MSTest syntax):
+     /// <summary>
+     /// Unique identifier which can correlate the producer and the consumer. Format is agreed by them.
+     /// </summary>
+     public string Reference { get; set; }
 
-    1 using Microsoft.VisualStudio.TestTools.UnitTesting;
-    2 using Azure.Messaging.ServiceBus; // You need this namespace
-    3 using System.Text.Json;
-    4 using System.Text;
-    5
-    6 [TestClass]
-    7 public class MyFunctionTests
-    8 {
-    9     [TestMethod]
-   10     public void Test_MyFunction_Processes_Order()
-   11     {
-   12         // --- 1. Arrange ---
-   13
-   14         // First, create the business object (your payload)
-   15         var myOrderPayload = new MyOrder { OrderId = "ABC-123", Quantity = 10 };
-   16
-   17         // Serialize your business object to a JSON string
-   18         var jsonPayload = JsonSerializer.Serialize(myOrderPayload);
-   19
-   20         // Now, use the factory to create the test message.
-   21         // The body must be provided as BinaryData.
-   22         ServiceBusReceivedMessage testMessage = ServiceBusModelFactory.ServiceBusReceivedMessage(
-   23             body: BinaryData.FromString(jsonPayload),
-   24             messageId: "test-message-01",
-   25             contentType: "application/json"
-   26             // You can also set other properties like ApplicationProperties, etc.
-   27         );
-   28
-   29
+     /// <summary>
+     /// The name of the sending system.
+     /// </summary>
+     public string Sender { get; set; }
 
+     /// <summary>
+     /// Name of the operation
+     /// </summary>
+     public string Event { get; set; }
 
-    1 {
-    2   "IsEncrypted": false,
-    3   "Values": {
-    4     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    5     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-    6     "ServiceBusConnection":
-      "Endpoint=sb://your-namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-secret-k
-      ey",
-    7     "MyCustomAppSetting": "some-value-for-my-app"
-    8   },
-    9   "Host": {
-   10     "CORS": "*"
-   11   }
-   12 }
+     /// <summary>
+     /// Current status of the operation.
+     /// </summary>
+     public string Status { get; set; }
+ }
+
+ public class ServiceBusMessage<T> : ServiceBusMessage
+ {
+     /// <summary>
+     /// The paylod the sender decided to send. Json format with PascalCase properties.
+     /// </summary>
+     public T Payload { get; set; }
+ }
+
+ var deserializedMessage = JsonSerializer.Deserialize<ServiceBusMessage<List<KeyValue>>>(servicebusreceivedmessage.Body().ToString)
