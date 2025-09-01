@@ -165,3 +165,36 @@ The two primary mechanisms for inter-workflow communication are:
 
   This event-based approach is extremely powerful for building scalable and resilient systems where different business processes can react
   to events independently.
+
+ 1 .Then<StartWorkflow>() // 1. Place the built-in "Start a Workflow" step into our process.
+    2
+    3     // --- Now, we configure the step using .Input() ---
+    4
+    5     // 2. Set the 'WorkflowId' property on the StartWorkflow step.
+    6     //    This tells the step WHICH workflow definition to launch.
+    7     .Input(step => step.WorkflowId, "ProcessItemWorkflow")
+    8
+    9     // 3. (Optional) Set the 'Version' property to be specific.
+   10     .Input(step => step.Version, 1)
+   11
+   12     // 4. Set the 'Data' property. This is the initial data object
+   13     //    that will be passed to the new child workflow when it starts.
+   14     .Input(step => step.Data, (data, context) => new ProcessItemData
+   15     {
+   16         ItemId = "item-123",
+   17         ParentWorkflowId = context.Workflow.Id
+   18     });
+
+  The Execution Flow
+
+  When your parent workflow reaches this point, here’s what the engine does behind the scenes:
+
+   1. It sees it needs to execute a StartWorkflow step.
+   2. It creates an instance of the WorkflowCore.Primitives.StartWorkflow class.
+   3. It looks at your .Input() mappings and populates the properties on that instance. It sets instance.WorkflowId = "ProcessItemWorkflow",
+      instance.Version = 1, etc.
+   4. It then calls the Run() method on the StartWorkflow instance.
+   5. Inside its Run() method, the StartWorkflow step takes the properties it was given and calls the main IWorkflowHost.StartWorkflow(...)
+      service, effectively executing host.StartWorkflow("ProcessItemWorkflow", 1, new ProcessItemData(...)).
+
+  So, you specify which child workflow to start by setting the WorkflowId property on the StartWorkflow primitive via the .Input() method.
