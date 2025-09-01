@@ -94,7 +94,7 @@ The two primary mechanisms for inter-workflow communication are:
     1     // ... in the workflow definition ...
     2     .Then<StartWorkflow<ProcessItemData>>() // Generic version is clean
     3         .Input(step => step.WorkflowId, "ProcessItemWorkflow")
-    4         .Input(step => step.Data, data => new ProcessItemData
+    4         .Input(step => step.Data,  (data, context) => new ProcessItemData
     5         {
     6             ItemId = "item-123",
     7             ParentWorkflowId = context.Workflow.Id // Pass our own ID to the child
