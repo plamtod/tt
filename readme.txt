@@ -200,3 +200,9 @@ The two primary mechanisms for inter-workflow communication are:
   So, you specify which child workflow to start by setting the WorkflowId property on the StartWorkflow primitive via the .Input() method.
 
 __fullyQualifiedNamespace
+
+ "extensions": {
+        "serviceBus": {
+          "transportType": "amqpWebSockets"
+        }
+      }
