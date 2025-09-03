@@ -198,3 +198,5 @@ The two primary mechanisms for inter-workflow communication are:
       service, effectively executing host.StartWorkflow("ProcessItemWorkflow", 1, new ProcessItemData(...)).
 
   So, you specify which child workflow to start by setting the WorkflowId property on the StartWorkflow primitive via the .Input() method.
+
+__fullyQualifiedNamespace
