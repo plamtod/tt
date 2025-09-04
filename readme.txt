@@ -208,3 +208,18 @@ __fullyQualifiedNamespace
       }
 
 docker run --name sql_2017 -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=1Secure*Password1" -e "MSSQL_PID=Enterprise" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2017-latest
+
+
+CREATE TABLE [dbo].[UserTasks](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](100) NOT NULL,
+	[User] [nvarchar](100) NOT NULL,
+	[WorkflowId] [nvarchar](100) NOT NULL,
+	[Approved] [bit] NOT NULL,
+	[ManagerNotified] [bit] NOT NULL,
+ CONSTRAINT [PK_UserTasks] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
