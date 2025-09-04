@@ -206,3 +206,5 @@ __fullyQualifiedNamespace
           "transportType": "amqpWebSockets"
         }
       }
+
+docker run --name sql_2017 -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=1Secure*Password1" -e "MSSQL_PID=Enterprise" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2017-latest
