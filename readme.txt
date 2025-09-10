@@ -520,3 +520,46 @@ builder
    70         .Then<Step4_Approved>()
    71         .Then<LogMessage>().Input(step => step.Message, "--> Step 5: Workflow finished.");
    72 }
+--- PARALLEL --------
+ public void Build(IWorkflowBuilder<ParallelData> builder)
+    2 {
+    3     builder
+    4         .StartWith<Step0_Start>()
+    5         // --- Outer Parallel Block ---
+    6         .Parallel()
+    7             // --- Branch A: The Main Logic (Steps 1, 2, and 4) ---
+    8             .Do(mainBranch => mainBranch
+    9                 // --- Inner Parallel Block ---
+   10                 .Parallel()
+   11                     .Do(branch1 => branch1
+   12                         .StartWith<Step1_Parallel>()
+   13                             .Output(data => data.ResultFromStep1, step => step.MyOutput)
+   14                     )
+   15                     .Do(branch2 => branch2
+   16                         .StartWith<Step2_Parallel>()
+   17                             .Output(data => data.ResultFromStep2, step => step.MyOutput)
+   18                     )
+   19                 .Join() // Waits for ONLY Step 1 and Step 2 to finish.
+   20
+   21                 // This step runs after the inner join is satisfied.
+   22                 .Then<Step4_Join>()
+   23                     .Input(step => step.Input1, data => data.ResultFromStep1)
+   24                     .Input(step => step.Input2, data => data.ResultFromStep2)
+   25                     .Output(data => data.FinalResultFromStep4, step => step.MyOutput)
+   26             )
+   27
+   28             // --- Branch B: The Independent Logic (Step 3) ---
+   29             .Do(independentBranch => independentBranch
+   30                 .StartWith<Step3_IndependentParallel>()
+   31             )
+   32         //
+   33         // ---> The final .Join() is here <---
+   34         // It waits for both Branch A and Branch B to be completely finished.
+   35         //
+   36         .Join()
+   37         //
+   38         // ---> The new final step is added here <---
+   39         // This is guaranteed to run only after the Join is satisfied.
+   40         //
+   41         .Then<Step5_Finish>();
+   42 }
