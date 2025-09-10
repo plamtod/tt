@@ -446,3 +446,63 @@ builder
    82             .Then<Step4_Approved>()
    83             .Then<LogMessage>()
    84                 .Input(step => step.Message, "--> Step 5: Workflow finished.");
+222222222222222222
+
+ // --- Step 1: Define the logic for each user choice as a separate Action ---
+   32
+   33         Action<IWorkflowBuilder<ComplexWorkflowData>> approveAction = branch => branch
+   34             .Then<LogMessage>().Input(step => step.Message, "User chose: APPROVE")
+   35             .Then<SetLoopFlags>().Input(step => step.LoopActivity, false).Input(step => step.LoopUserTask, false);
+   36
+   37         Action<IWorkflowBuilder<ComplexWorkflowData>> disapproveAction = branch => branch
+   38             .Then<LogMessage>().Input(step => step.Message, "User chose: DISAPPROVE. Terminating.")
+   39             .Then<TerminateWorkflow>();
+   40
+   41         Action<IWorkflowBuilder<ComplexWorkflowData>> restartAction = branch => branch
+   42             .Then<LogMessage>().Input(step => step.Message, "User chose: RESTART. Presenting user task again.")
+   43             .Then<SetLoopFlags>().Input(step => step.LoopActivity, false).Input(step => step.LoopUserTask, true);
+   44
+   45         Action<IWorkflowBuilder<ComplexWorkflowData>> reworkAction = branch => branch
+   46             .Then<LogMessage>().Input(step => step.Message, "User chose: REWORK. Returning to activity step.")
+   47             .Then<SetLoopFlags>().Input(step => step.LoopActivity, true).Input(step => step.LoopUserTask, false);
+   48
+   49         // --- Step 2: Define the logic for the two main paths (Activity Success vs. Failure) ---
+   50
+   51         Action<IWorkflowBuilder<ComplexWorkflowData>> activitySuccessPath = successPath =>
+   52         {
+   53             successPath
+   54                 .Then<LogMessage>().Input(step => step.Message, "--> Activity returned TRUE. Proceeding to user task.")
+   55                 .While(data => data.ShouldLoopOnUserTask)
+   56                     .Do(userTaskLoop => userTaskLoop
+   57                         .Then<LogMessage>().Input(step => step.Message, "--> Step 3: Waiting for user decision...")
+   58                         .UserTask("Please review the task.", data => "some-user")
+   59                             .WithOption("approve", "Approve").Do(approveAction)
+   60                             .WithOption("disapprove", "Disapprove").Do(disapproveAction)
+   61                             .WithOption("restart", "Restart Task").Do(restartAction)
+   62                             .WithOption("rework", "Rework (Go to Step 2)").Do(reworkAction)
+   63                     );
+   64         };
+   65
+   66         Action<IWorkflowBuilder<ComplexWorkflowData>> activityFailurePath = failurePath =>
+   67         {
+   68             failurePath
+   69                 .Then<LogMessage>().Input(step => step.Message, "--> Activity returned FALSE. Terminating.")
+   70                 .Then<TerminateWorkflow>();
+   71         };
+   72
+   73
+   74         // --- Step 3: Assemble the final workflow using the defined actions ---
+   75
+   76         builder
+   77             .StartWith<Step1_Start>()
+   78             .While(data => data.ShouldLoopOnActivity)
+   79                 .Do(activityLoop => activityLoop
+   80                     .Then<LogMessage>().Input(step => step.Message, "--> Step 2: Waiting for activity worker...")
+   81                     .Activity("do-work", data => data.WorkflowInstanceId)
+   82                         .Output(data => data.ActivityResult, step => step.Result)
+   83                     .If(data => data.ActivityResult == true)
+   84                         .Then(activitySuccessPath)
+   85                     .Else(activityFailurePath)
+   86                 )
+   87             .Then<Step4_Approved>()
+   88             .Then<LogMessage>().Input(step => step.Message, "--> Step 5: Workflow finished.");
