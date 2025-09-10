@@ -223,3 +223,101 @@ CREATE TABLE [dbo].[UserTasks](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
+
+---
+  71
+    72 // --- 3. The Main Workflow Definition ---
+    73
+    74 public class ComplexWorkflow : IWorkflow<ComplexWorkflowData>
+    75 {
+    76     public string Id => "ComplexWorkflow";
+    77     public int Version => 1;
+    78
+    79     public void Build(IWorkflowBuilder<ComplexWorkflowData> builder)
+    80     {
+    81         builder
+    82             .StartWith<Step1_Start>()
+    83             // This is the main loop that allows us to "re-enter" Step 2
+    84             .While(data => data.ShouldLoopOnActivity)
+    85                 .Do(activityLoop => activityLoop
+    86                     .Then<LogMessage>()
+    87                         .Input(step => step.Message, "--> Step 2: Waiting for activity worker...")
+    88                     // Define the external activity that needs to be processed
+    89                     .Activity("do-work", data => data.WorkflowInstanceId)
+    90                         .Output(data => data.ActivityResult, step => step.Result)
+    91
+    92                     // Check the result from the activity
+    93                     .If(data => data.ActivityResult == true)
+    94                         .Do(successPath => successPath
+    95                             .Then<LogMessage>()
+    96                                 .Input(step => step.Message, "--> Activity returned TRUE.
+       Proceeding to user task.")
+    97                             // This is the inner loop that allows the user to "restart" the task
+    98                             .While(data => data.ShouldLoopOnUserTask)
+    99                                 .Do(userTaskLoop => userTaskLoop
+   100                                     .Then<LogMessage>()
+   101                                         .Input(step => step.Message, "--> Step 3: Waiting for user
+       decision...")
+   102                                     .UserTask("Please review the task.", data => "some-user")
+   103                                         .WithOption("approve", "Approve")
+   104                                         .WithOption("disapprove", "Disapprove")
+   105                                         .WithOption("restart", "Restart Task")
+   106                                         .WithOption("rework", "Rework (Go to Step 2)")
+   107                                         .Output(data => data.UserTaskChoice, step => step.Outcome)
+   108                                 )
+   109                             // Use a Switch to handle the user's choice
+   110                             .Switch(data => data.UserTaskChoice)
+   111                                 .Case("approve",
+   112                                     // If approved, set both loop flags to false to exit
+       completely
+   113                                     new WorkflowBuilder<ComplexWorkflowData>(builder.Definition)
+   114                                         .Then<LogMessage>()
+   115                                             .Input(step => step.Message, "User chose: APPROVE")
+   116                                         .Then<SetLoopFlags>()
+   117                                             .Input(step => step.LoopActivity, false)
+   118                                             .Input(step => step.LoopUserTask, false)
+   119                                 )
+   120                                 .Case("disapprove",
+   121                                     // If disapproved, terminate the workflow
+   122                                     new WorkflowBuilder<ComplexWorkflowData>(builder.Definition)
+   123                                         .Then<LogMessage>()
+   124                                             .Input(step => step.Message, "User chose: DISAPPROVE.
+       Terminating.")
+   125                                         .Then<TerminateWorkflow>()
+   126                                 )
+   127                                 .Case("restart",
+   128                                     // If restart, keep the inner loop flag true to repeat the
+       user task
+   129                                     new WorkflowBuilder<ComplexWorkflow_Data>(builder.Definition)
+   130                                         .Then<LogMessage>()
+   131                                             .Input(step => step.Message, "User chose: RESTART.
+       Presenting user task again.")
+   132                                         .Then<SetLoopFlags>()
+   133                                             .Input(step => step.LoopActivity, false)
+   134                                             .Input(step => step.LoopUserTask, true)
+   135                                 )
+   136                                 .Case("rework",
+   137                                     // If rework, exit the inner loop but keep the outer loop flag
+       true
+   138                                     new WorkflowBuilder<ComplexWorkflowData>(builder.Definition)
+   139                                         .Then<LogMessage>()
+   140                                             .Input(step => step.Message, "User chose: REWORK.
+       Returning to activity step.")
+   141                                         .Then<SetLoopFlags>()
+   142                                             .Input(step => step.LoopActivity, true)
+   143                                             .Input(step => step.LoopUserTask, false)
+   144                                 )
+   145                         )
+   146                     .Else()
+   147                         .Do(failurePath => failurePath
+   148                             .Then<LogMessage>()
+   149                                 .Input(step => step.Message, "--> Activity returned FALSE.
+       Terminating.")
+   150                             .Then<TerminateWorkflow>()
+   151                         )
+   152                 )
+   153             .Then<Step4_Approved>()
+   154             .Then<LogMessage>()
+   155                 .Input(step => step.Message, "--> Step 5: Workflow finished.");
+   156     }
+   157 }
