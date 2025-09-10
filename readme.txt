@@ -321,3 +321,68 @@ GO
    155                 .Input(step => step.Message, "--> Step 5: Workflow finished.");
    156     }
    157 }
+
+builder
+    4         .StartWith<Step1_Start>()
+    5         .While(data => data.ShouldLoopOnActivity)
+    6             .Do(activityLoop => activityLoop
+    7                 .Then<LogMessage>()
+    8                     .Input(step => step.Message, "--> Step 2: Waiting for activity worker...")
+    9                 .Activity("do-work", data => data.WorkflowInstanceId)
+   10                     .Output(data => data.ActivityResult, step => step.Result)
+   11                 .If(data => data.ActivityResult == true)
+   12                     .Do(successPath => successPath
+   13                         .Then<LogMessage>()
+   14                             .Input(step => step.Message, "--> Activity returned TRUE. Proceeding to user task.")
+   15                         .While(data => data.ShouldLoopOnUserTask)
+   16                             .Do(userTaskLoop => userTaskLoop
+   17                                 .Then<LogMessage>()
+   18                                     .Input(step => step.Message, "--> Step 3: Waiting for user decision...")
+   19                                 .UserTask("Please review the task.", data => "some-user")
+   20                                     .WithOption("approve", "Approve")
+   21                                     .WithOption("disapprove", "Disapprove")
+   22                                     .WithOption("restart", "Restart Task")
+   23                                     .WithOption("rework", "Rework (Go to Step 2)")
+   24                                     .Output(data => data.UserTaskChoice, step => step.Outcome)
+   25                             )
+   26                         //
+   27                         // --- THIS IS THE CORRECTED SWITCH BLOCK ---
+   28                         //
+   29                         .Switch(data => data.UserTaskChoice)
+   30                             .Case("approve", approveBranch => approveBranch
+   31                                 .Then<LogMessage>()
+   32                                     .Input(step => step.Message, "User chose: APPROVE")
+   33                                 .Then<SetLoopFlags>()
+   34                                     .Input(step => step.LoopActivity, false)
+   35                                     .Input(step => step.LoopUserTask, false)
+   36                             )
+   37                             .Case("disapprove", disapproveBranch => disapproveBranch
+   38                                 .Then<LogMessage>()
+   39                                     .Input(step => step.Message, "User chose: DISAPPROVE. Terminating.")
+   40                                 .Then<TerminateWorkflow>()
+   41                             )
+   42                             .Case("restart", restartBranch => restartBranch
+   43                                 .Then<LogMessage>()
+   44                                     .Input(step => step.Message, "User chose: RESTART. Presenting user task again.")
+   45                                 .Then<SetLoopFlags>()
+   46                                     .Input(step => step.LoopActivity, false)
+   47                                     .Input(step => step.LoopUserTask, true)
+   48                             )
+   49                             .Case("rework", reworkBranch => reworkBranch
+   50                                 .Then<LogMessage>()
+   51                                     .Input(step => step.Message, "User chose: REWORK. Returning to activity step.")
+   52                                 .Then<SetLoopFlags>()
+   53                                     .Input(step => step.LoopActivity, true)
+   54                                     .Input(step => step.LoopUserTask, false)
+   55                             )
+   56                     )
+   57                 .Else()
+   58                     .Do(failurePath => failurePath
+   59                         .Then<LogMessage>()
+   60                             .Input(step => step.Message, "--> Activity returned FALSE. Terminating.")
+   61                         .Then<TerminateWorkflow>()
+   62                     )
+   63             )
+   64         .Then<Step4_Approved>()
+   65         .Then<LogMessage>()
+   66             .Input(step => step.Message, "--> Step 5: Workflow finished.");
