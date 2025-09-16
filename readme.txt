@@ -562,4 +562,54 @@ builder
    39         // This is guaranteed to run only after the Join is satisfied.
    40         //
    41         .Then<Step5_Finish>();
-   42 }
+
+{
+    builder.Services.AddSignalR().AddAzureSignalR(option => option.Endpoints = new ServiceEndpoint[]
+        {
+            new(new Uri(builder.Configuration.GetValue<string>("CREW_SIGNALR_ENDPOINT")),
+            new ManagedIdentityCredential(builder.Configuration["ManagedIdentityId"])),
+        });
+}
+builder.Services.AddSingleton<IUserIdProvider, NIdUserIdProvider>();
+
+builder.Services
+    .AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    });
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(
+        options =>
+        {
+            builder.Configuration.Bind("AzureAd", options);
+
+            options.Events = new JwtBearerEvents()
+            {
+                // In a websocket connection, the access token is in a query param.
+                // Add the access token to the context when SignalR is used.
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hub"))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                },
+                OnTokenValidated = async context =>
+                {
+                    await AddNIdClaim(context);
+                    // Create also authentication cookie to allow opening urls in the browser e.g. document preview in IFrame.
+                    await SignInWithCookie(context, DocumentsPreviewAuthSchema, logger);
+                }
+            };
+        },
+        options => builder.Configuration.Bind("AzureAd", options)
+    );
+ }
+
+app.MapHub<MainHub>("/hub").RequireAuthorization();
+
