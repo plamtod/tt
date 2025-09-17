@@ -1,31 +1,70 @@
-f1
-f2
-f3
-feature1
+public interface IHubClient
+    3 {
+    4     Task SendMessageAsync(string user, string message);
+    5 }
+    6
+    7 public class HubClient : IHubClient, IAsyncDisposable
+    8 {
+    9     private readonly HubConnection _hubConnection;
+   10
+   11     public HubClient(IConfiguration configuration)
+   12     {
+   13         var hubUrl = configuration.GetValue<string>("SignalRHubUrl");
+   14         _hubConnection = new HubConnectionBuilder()
+   15             .WithUrl(hubUrl)
+   16             .WithAutomaticReconnect()
+   17             .Build();
+   18     }
+   19
+   20     // ... (implementation with EnsureConnectedAsync, etc., is the same as before)
+   21 }
 
-feature2S3123456714
-
-aa
-
-zzz
-
-
-
-
-
-vvac v
-
-aa
-
-
-aaaaaaaaaaaaaaaaaaaa
-
-
-x
-
-bbbbbbbbbbbbbbbb
-
-MAIN1
+ 1 // This is your service from your Web API project, now also used by the Function
+    2 public class MySharedApiService : IMySharedApiService
+    3 {
+    4     private readonly IHubClient _hubClient;
+    5
+    6     // Your service depends on IHubClient
+    7     public MySharedApiService(IHubClient hubClient)
+    8     {
+    9         _hubClient = hubClient;
+   10     }
+   11
+   12     public async Task DoWorkAndNotifyAsync(string work)
+   13     {
+   14         // ... perform some business logic ...
+   15         Console.WriteLine($"Doing work: {work}");
+   16
+   17         // Internally, it uses the injected client to call SignalR
+   18         await _hubClient.SendMessageAsync("MySharedApiService", $"Work completed: {work}");
+   19     }
+   20 }
 
 
+// AZ FUNC
+3. Configure Dependency Injection in Your Azure Function
 
+  This is the direct answer to your question. In your Azure Function's Program.cs, you need to register both the HubClient and your
+  MySharedApiService.
+
+    1 // In your Azure Function's Program.cs
+    2
+    3 using Microsoft.Extensions.DependencyInjection;
+    4 using Microsoft.Extensions.Hosting;
+    5
+    6 var host = new HostBuilder()
+    7     .ConfigureFunctionsWorkerDefaults()
+    8     .ConfigureServices(services =>
+    9     {
+   10         // 1. Register the SignalR client wrapper as a Singleton.
+   11         //    The DI container will create one instance of HubClient for the
+   12         //    lifetime of the function app.
+   13         services.AddSingleton<IHubClient, HubClient>();
+   14
+   15         // 2. Register your shared service. We use Scoped so a new instance
+   16         //    is created for each function execution.
+   17         services.AddScoped<IMySharedApiService, MySharedApiService>();
+   18     })
+   19     .Build();
+   20
+   21 host.Run();
