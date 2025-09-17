@@ -1,0 +1,174 @@
+2. The DataConnection
+
+  First, create your custom DataConnection class. This allows you to configure it for dependency injection.
+
+    1 using LinqToDB.Data;
+    2
+    3 // MyAppDataConnection inherits from DataConnection
+    4 public class MyAppDataConnection : DataConnection
+    5 {
+    6     public MyAppDataConnection(DataOptions<MyAppDataConnection> options)
+    7         : base(options.Options)
+    8     {
+    9     }
+   10
+   11     // Define your tables here, for example:
+   12     // public ITable<Product> Products => this.GetTable<Product>();
+   13     // public ITable<Order> Orders => this.GetTable<Order>();
+   14 }
+
+1 using System;
+   2 using System.Threading.Tasks;
+   3
+   4 public interface IUnitOfWork : IAsyncDisposable
+   5 {
+   6     Task CommitAsync();
+   7 }
+
+1 using LinqToDB.Data;
+    2 using System.Threading.Tasks;
+    3
+    4 public class UnitOfWork : IUnitOfWork
+    5 {
+    6     private readonly DataConnection _connection;
+    7     private bool _disposed;
+    8
+    9     public UnitOfWork(MyAppDataConnection connection)
+   10     {
+   11         _connection = connection;
+   12         // Begin the transaction as soon as the Unit of Work is created.
+   13         _connection.BeginTransaction();
+   14     }
+   15
+   16     public async Task CommitAsync()
+   17     {
+   18         await _connection.CommitTransactionAsync();
+   19     }
+   20
+   21     public async ValueTask DisposeAsync()
+   22     {
+   23         if (!_disposed)
+   24         {
+   25             // If DisposeAsync is called and the transaction is still active,
+   26             // it means CommitAsync was not called, so we should roll back.
+   27             if (_connection.Transaction != null)
+   28             {
+   29                 await _connection.RollbackTransactionAsync();
+   30             }
+   31             _disposed = true;
+   32         }
+   33     }
+   34 }
+
+1 using LinqToDB;
+    2 using System.Threading.Tasks;
+    3
+    4 public interface IProductRepository
+    5 {
+    6     Task AddProductAsync(Product product);
+    7 }
+    8
+    9 public class ProductRepository : IProductRepository
+   10 {
+   11     private readonly MyAppDataConnection _connection;
+   12
+   13     public ProductRepository(MyAppDataConnection connection)
+   14     {
+   15         _connection = connection;
+   16     }
+   17
+   18     public async Task AddProductAsync(Product product)
+   19     {
+   20         // This operation will be part of the transaction started by the UnitOfWork.
+   21         await _connection.InsertAsync(product);
+   22     }
+   23 }
+
+1 using LinqToDB.AspNet;
+    2 using LinqToDB.Configuration;
+    3
+    4 var builder = WebApplication.CreateBuilder(args);
+    5
+    6 // 1. Add LinqToDB support
+    7 builder.Services.AddLinqToDBContext<MyAppDataConnection>((provider, options) => {
+    8     options
+    9         .UseSqlServer(builder.Configuration.GetConnectionString("Default"))
+   10         // Or .UsePostgreSQL(), .UseMySql(), etc.
+   11         .UseDefaultLogging(provider);
+   12 });
+   13
+   14 // 2. Register your Unit of Work and Repositories
+   15 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+   16 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+   17
+   18 // Add controllers, etc.
+   19 builder.Services.AddControllers();
+   20
+   21 var app = builder.Build();
+   22
+   23 // ...
+
+1 public class UnitOfWorkMiddleware
+    2 {
+    3     private readonly RequestDelegate _next;
+    4
+    5     public UnitOfWorkMiddleware(RequestDelegate next)
+    6     {
+    7         _next = next;
+    8     }
+    9
+   10     public async Task InvokeAsync(HttpContext context, IUnitOfWork unitOfWork)
+   11     {
+   12         // Call the next middleware in the pipeline
+   13         await _next(context);
+   14
+   15         // If the response was successful (e.g., 2xx status code), commit the transaction.
+   16         if (context.Response.StatusCode >= 200 && context.Response.StatusCode <= 299)
+   17         {
+   18             await unitOfWork.CommitAsync();
+   19         }
+   20         // If the response was not successful, the UnitOfWork will be disposed
+   21         // by the DI container at the end of the request, and its DisposeAsync
+   22         // method will automatically roll back the transaction.
+   23     }
+   24 }
+   25
+   26 // In Program.cs, add the middleware to the pipeline
+   27 // ...
+   28 var app = builder.Build();
+   29
+   30 // Add the middleware right after authentication/authorization
+   31 app.UseHttpsRedirection();
+   32 app.UseAuthorization();
+   33
+   34 // Use our custom middleware
+   35 app.UseMiddleware<UnitOfWorkMiddleware>();
+   36
+   37 app.MapControllers();
+   38 app.Run();
+
+  ---
+1 [ApiController]
+    2 [Route("[controller]")]
+    3 public class ProductsController : ControllerBase
+    4 {
+    5     private readonly IProductRepository _productRepository;
+    6
+    7     public ProductsController(IProductRepository productRepository)
+    8     {
+    9         _productRepository = productRepository;
+   10     }
+   11
+   12     [HttpPost]
+   13     public async Task<IActionResult> CreateProduct([FromBody] Product product)
+   14     {
+   15         await _productRepository.AddProductAsync(product);
+   16
+   17         // If we return a success status code here, the middleware will commit.
+   18         // If an exception was thrown anywhere, the middleware would not commit,
+   19         // and the UoW's Dispose would roll back the transaction.
+   20         return Ok(product);
+   21     }
+   22 }
+
+
