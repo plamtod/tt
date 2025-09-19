@@ -613,3 +613,144 @@ builder.Services
 
 app.MapHub<MainHub>("/hub").RequireAuthorization();
 
+using Microsoft.Extensions.Configuration;
+using Microsoft.Graph;
+using Microsoft.Graph.Models;
+using Microsoft.Graph.DirectoryObjects.Item.CheckMemberGroups;
+using Microsoft.Kiota.Abstractions;
+using Microsoft.Kiota.Abstractions.Authentication;
+using Microsoft.Graph.Groups.Delta;
+using static Microsoft.Graph.CoreConstants;
+using Microsoft.Extensions.Options;
+using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
+
+namespace CrewPortal.Backend.EntraIdSvc
+{
+    /// <summary>
+    /// Wrapper class for GraphServiceClient.
+    /// </summary>
+    /// <remarks>
+    /// Creates new instance of GraphServiceClientWrapper.
+    /// </remarks>
+    /// <param name="config">Configuration.</param>
+    public class GraphServiceClientWrapper(GraphServiceClient graphServiceClient, GraphServiceClientWrapperSettings config) : IGraphServiceClientWrapper
+    {
+        //private GraphServiceClient graphServiceClient;
+        //private readonly TokenHelper tokenHelper = new(config);
+
+        /// <summary>
+        /// Get users for given filter.
+        /// </summary>
+        /// <param name="currentUserToken">Current user token.</param>
+        /// <param name="filter">Query filter.</param>
+        /// <returns>User objects.</returns>
+        public async Task<UserCollectionResponse> GetUsersAsync(string filter)
+        {
+            //await this.InitGraphServiceClient();
+
+            return await graphServiceClient.Users
+                .GetAsync(requestConfiguration =>
+                {
+                    requestConfiguration.QueryParameters.Filter = filter;
+                    requestConfiguration.QueryParameters.Select = new string[]
+                    {
+                        "id",
+                        "mailNickname",
+                        "displayName",
+                        "givenName",
+                        "surname",
+                        "userPrincipalName",
+                        "onPremisesDomainName",
+                    };
+                });
+        }
+
+        /// <summary>
+        /// Get paginated users.
+        /// </summary>
+        /// <param name="aadUserId">AAD user id.</param>
+        /// <param name="countResponse">Response with pagination information.</param>
+        /// <returns>User objects.</returns>
+        public async Task<GroupCollectionResponse> GetPaginatedGroupsAsync(string aadUserId, BaseCollectionPaginationCountResponse countResponse)
+        {
+            //await this.InitGraphServiceClient();
+
+            return await graphServiceClient.Users[aadUserId]
+                .WithUrl(countResponse?.OdataNextLink)
+                .MemberOf
+                .GraphGroup
+                .GetAsync();
+        }
+
+        /// <summary>
+        /// Get users belonging to a specified GraphAPI group.
+        /// </summary>
+        /// <param name="groupId">ID of group to get users from.</param>
+        /// <returns>User objects.</returns>
+        public async Task<UserCollectionResponse> GetUsersFromGroupAsync(string groupId)
+        {
+            //await this.InitGraphServiceClient();
+
+            return await graphServiceClient.Groups[groupId]
+                .Members
+                .GraphUser
+                .GetAsync(r => r.QueryParameters.Select = new string[]
+                {
+                    "id",
+                    "mailNickname",
+                    "employeeId",
+                    "displayName",
+                    "givenName",
+                    "surname",
+                    "userPrincipalName",
+                    "onPremisesDomainName",
+                });
+        }
+
+        public async Task<bool> GetIsUserInListOfGroups(string userId, List<string> groupIds)
+        {
+            //await this.InitGraphServiceClient();
+
+            var checkMemberGroupsResult = await graphServiceClient.DirectoryObjects[userId]
+                .CheckMemberGroups
+                .PostAsCheckMemberGroupsPostResponseAsync(
+                    new CheckMemberGroupsPostRequestBody
+                    {
+                        GroupIds = groupIds
+                    }
+                );
+
+            if (checkMemberGroupsResult != null && checkMemberGroupsResult?.Value?.Count != 0)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Get groups from GraphAPI.
+        /// </summary>
+        /// <param name="filter">Query filter.</param>
+        /// <returns>Group objects.</returns>
+        public async Task<GroupCollectionResponse> GetGroupsAsync(string filter)
+        {
+            //await this.InitGraphServiceClient();
+
+            return await graphServiceClient.Groups
+                .GetAsync(requestConfiguration =>
+                                requestConfiguration.QueryParameters.Filter = filter);
+        }
+
+        //private async Task InitGraphServiceClient()
+        //{
+        //    var provider = new TokenProvider
+        //    {
+        //        Token = await this.tokenHelper.CreateJwtGraphAPITokenAsync()
+        //    };
+
+        //    var authenticationProvider = new BaseBearerTokenAuthenticationProvider(provider);
+        //    this.graphServiceClient = new GraphServiceClient(authenticationProvider);
+        //}
+    }
+}
+
