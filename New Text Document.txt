@@ -1,3 +1,29 @@
+AadClient+<GetUsersInGroup>d__2]' is invalid for serialization or deserialization because it is a pointer type, is a ref struct, or contains generic parameters that have not been replaced by specific types.'
+public class AadClient(IGraphServiceClientWrapper graphServiceClientWrapper) : IAADClient
+{
+    private readonly IGraphServiceClientWrapper graphServiceClientWrapper = graphServiceClientWrapper;
+
+    /// <summary>
+    /// Gets users in specified group.
+    /// </summary>
+    /// <param name="groupName">Group name.</param>
+    /// <returns>List of user objects.</returns>
+    public async Task<List<User>> GetUsersInGroup(string groupName)
+    {
+        var userList = new List<User>();
+        var groups = await this.graphServiceClientWrapper.GetGroupsAsync($"startsWith(displayName,'{groupName}')");
+
+        if (groups != null && groups.Value != null)
+        {
+            foreach (var group in groups.Value)
+            {
+                userList.AddRange(await this.GetUsersFromGroup(group));
+            }
+        }
+
+        return userList;
+    }
+
 2. The DataConnection
 
   First, create your custom DataConnection class. This allows you to configure it for dependency injection.
@@ -203,3 +229,4 @@ builder.Services.AddSingleton<GraphServiceClient>(pr => {
     var authenticationProvider = new BaseBearerTokenAuthenticationProvider(provider);
     return new GraphServiceClient(authenticationProvider);
 });
+
