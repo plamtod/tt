@@ -171,4 +171,24 @@
    21     }
    22 }
 
+---------------------
+ public async Task<string> CreateJwtGraphAPITokenAsync()
+ {
+     var confidentialClientApplicationBuilder = ConfidentialClientApplicationBuilder
+         .Create(this.config.ClientId)
+         .WithAuthority(this.config.AuthorityUrl)
+         .WithClientSecret(this.config.ClientSecret);
+
+     if (!string.IsNullOrEmpty(this.config.ClientId))
+     {
+         confidentialClientApplicationBuilder.WithClientId(this.config.ClientId);
+     }
+
+     var app = confidentialClientApplicationBuilder.Build();
+
+     string[] scopes = { "https://graph.microsoft.com/.default" };
+     var authenticationResult = await app.AcquireTokenForClient(scopes).ExecuteAsync();
+
+     return authenticationResult.AccessToken;
+ }
 
