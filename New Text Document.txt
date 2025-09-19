@@ -192,3 +192,14 @@
      return authenticationResult.AccessToken;
  }
 
+
+builder.Services.AddSingleton<GraphServiceClient>(pr => {
+    TokenHelper tokenHelper = new(graphSvcClientWrapperConfig);
+    var provider = new TokenProvider
+    {
+        Token = await tokenHelper.CreateJwtGraphAPITokenAsync()
+    };
+
+    var authenticationProvider = new BaseBearerTokenAuthenticationProvider(provider);
+    return new GraphServiceClient(authenticationProvider);
+});
