@@ -1,70 +1,79 @@
-public interface IHubClient
-    3 {
-    4     Task SendMessageAsync(string user, string message);
-    5 }
-    6
-    7 public class HubClient : IHubClient, IAsyncDisposable
-    8 {
-    9     private readonly HubConnection _hubConnection;
-   10
-   11     public HubClient(IConfiguration configuration)
-   12     {
-   13         var hubUrl = configuration.GetValue<string>("SignalRHubUrl");
-   14         _hubConnection = new HubConnectionBuilder()
-   15             .WithUrl(hubUrl)
-   16             .WithAutomaticReconnect()
-   17             .Build();
-   18     }
-   19
-   20     // ... (implementation with EnsureConnectedAsync, etc., is the same as before)
-   21 }
+public class TokenHelper
+{
+    private readonly GraphServiceClientWrapperSettings config;
 
- 1 // This is your service from your Web API project, now also used by the Function
-    2 public class MySharedApiService : IMySharedApiService
-    3 {
-    4     private readonly IHubClient _hubClient;
-    5
-    6     // Your service depends on IHubClient
-    7     public MySharedApiService(IHubClient hubClient)
-    8     {
-    9         _hubClient = hubClient;
-   10     }
-   11
-   12     public async Task DoWorkAndNotifyAsync(string work)
-   13     {
-   14         // ... perform some business logic ...
-   15         Console.WriteLine($"Doing work: {work}");
-   16
-   17         // Internally, it uses the injected client to call SignalR
-   18         await _hubClient.SendMessageAsync("MySharedApiService", $"Work completed: {work}");
-   19     }
-   20 }
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="configuration">Configuration.</param>
+    public TokenHelper(GraphServiceClientWrapperSettings config)
+    {
+        this.config = config;
+        this.config.AuthorityUrl = @$"https://login.microsoftonline.com/{this.config.TenantId}";
+    }
 
+    /// <summary>
+    /// Create JWT token for GraphAPI.
+    /// Create JWT GraphAPI Token.
+    /// </summary>
+    /// <returns>Bearer token for GraphAPI.</returns>
+    public async Task<string> CreateJwtGraphAPITokenAsync()
+    {
+        var confidentialClientApplicationBuilder = ConfidentialClientApplicationBuilder
+            .Create(this.config.ClientId)
+            .WithAuthority(this.config.AuthorityUrl)
+            .WithClientSecret(this.config.ClientSecret);
 
-// AZ FUNC
-3. Configure Dependency Injection in Your Azure Function
+        if (!string.IsNullOrEmpty(this.config.ClientId))
+        {
+            confidentialClientApplicationBuilder.WithClientId(this.config.ClientId);
+        }
 
-  This is the direct answer to your question. In your Azure Function's Program.cs, you need to register both the HubClient and your
-  MySharedApiService.
+        var app = confidentialClientApplicationBuilder.Build();
 
-    1 // In your Azure Function's Program.cs
-    2
-    3 using Microsoft.Extensions.DependencyInjection;
-    4 using Microsoft.Extensions.Hosting;
-    5
-    6 var host = new HostBuilder()
-    7     .ConfigureFunctionsWorkerDefaults()
-    8     .ConfigureServices(services =>
-    9     {
-   10         // 1. Register the SignalR client wrapper as a Singleton.
-   11         //    The DI container will create one instance of HubClient for the
-   12         //    lifetime of the function app.
-   13         services.AddSingleton<IHubClient, HubClient>();
-   14
-   15         // 2. Register your shared service. We use Scoped so a new instance
-   16         //    is created for each function execution.
-   17         services.AddScoped<IMySharedApiService, MySharedApiService>();
-   18     })
-   19     .Build();
-   20
-   21 host.Run();
+        string[] scopes = { "https://graph.microsoft.com/.default" };
+        var authenticationResult = await app.AcquireTokenForClient(scopes).ExecuteAsync();
+
+        return authenticationResult.AccessToken;
+    }
+}
+
+Program.cs
+var graphSvcClientWrapperConfig = new GraphServiceClientWrapperSettings
+{
+    TenantId = graphSvcClientWrapperConfigSection["TenantId"]!,
+    ClientId = graphSvcClientWrapperConfigSection["ClientId"]!,
+    ClientSecret = builder.Configuration["AzureAD:ClientSecret"]!,
+};
+builder.Services.AddSingleton<GraphServiceClient>(pr => {
+    TokenHelper tokenHelper = new(graphSvcClientWrapperConfig);
+    var provider = new TokenProvider
+    {
+        Token = await tokenHelper.CreateJwtGraphAPITokenAsync()
+    };
+
+    var authenticationProvider = new BaseBearerTokenAuthenticationProvider(provider);
+    return new GraphServiceClient(authenticationProvider);
+});
+
+public class TokenProvider : IAccessTokenProvider
+{
+    /// <summary>
+    /// Gets or sets token.
+    /// </summary>
+    public string? Token { get; set; }
+
+    /// <summary>
+    /// Gets allowed hosts validator.
+    /// </summary>
+    public AllowedHostsValidator AllowedHostsValidator { get; }
+
+    /// <summary>
+    /// Gets authorization token.
+    /// </summary>
+    /// <param name="uri">Uri.</param>
+    /// <param name="additionalAuthenticationContext">Additional authentication context.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Token.</returns>
+    public Task<string> GetAuthorizationTokenAsync(Uri uri, Dictionary<string, object>? additionalAuthenticationContext = null, CancellationToken cancellationToken = default) => Task.FromResult(this.Token);
+}
