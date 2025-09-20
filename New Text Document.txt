@@ -1,3 +1,15 @@
+
+ervices.AddSingleton<IAccessTokenProvider, CustomTokenProvider>();
+
+services.AddSingleton<GraphServiceClient>(sp =>
+{
+    var tokenProvider = sp.GetRequiredService<IAccessTokenProvider>();
+    var authProvider = new BaseBearerTokenAuthenticationProvider(tokenProvider);
+    return new GraphServiceClient(authProvider);
+});
+
+
+
 AadClient+<GetUsersInGroup>d__2]' is invalid for serialization or deserialization because it is a pointer type, is a ref struct, or contains generic parameters that have not been replaced by specific types.'
 public class AadClient(IGraphServiceClientWrapper graphServiceClientWrapper) : IAADClient
 {
@@ -229,4 +241,5 @@ builder.Services.AddSingleton<GraphServiceClient>(pr => {
     var authenticationProvider = new BaseBearerTokenAuthenticationProvider(provider);
     return new GraphServiceClient(authenticationProvider);
 });
+
 
