@@ -1,41 +1,4 @@
 
-ervices.AddSingleton<IAccessTokenProvider, CustomTokenProvider>();
-
-services.AddSingleton<GraphServiceClient>(sp =>
-{
-    var tokenProvider = sp.GetRequiredService<IAccessTokenProvider>();
-    var authProvider = new BaseBearerTokenAuthenticationProvider(tokenProvider);
-    return new GraphServiceClient(authProvider);
-});
-
-
-
-AadClient+<GetUsersInGroup>d__2]' is invalid for serialization or deserialization because it is a pointer type, is a ref struct, or contains generic parameters that have not been replaced by specific types.'
-public class AadClient(IGraphServiceClientWrapper graphServiceClientWrapper) : IAADClient
-{
-    private readonly IGraphServiceClientWrapper graphServiceClientWrapper = graphServiceClientWrapper;
-
-    /// <summary>
-    /// Gets users in specified group.
-    /// </summary>
-    /// <param name="groupName">Group name.</param>
-    /// <returns>List of user objects.</returns>
-    public async Task<List<User>> GetUsersInGroup(string groupName)
-    {
-        var userList = new List<User>();
-        var groups = await this.graphServiceClientWrapper.GetGroupsAsync($"startsWith(displayName,'{groupName}')");
-
-        if (groups != null && groups.Value != null)
-        {
-            foreach (var group in groups.Value)
-            {
-                userList.AddRange(await this.GetUsersFromGroup(group));
-            }
-        }
-
-        return userList;
-    }
-
 2. The DataConnection
 
   First, create your custom DataConnection class. This allows you to configure it for dependency injection.
@@ -210,36 +173,6 @@ public class AadClient(IGraphServiceClientWrapper graphServiceClientWrapper) : I
    22 }
 
 ---------------------
- public async Task<string> CreateJwtGraphAPITokenAsync()
- {
-     var confidentialClientApplicationBuilder = ConfidentialClientApplicationBuilder
-         .Create(this.config.ClientId)
-         .WithAuthority(this.config.AuthorityUrl)
-         .WithClientSecret(this.config.ClientSecret);
 
-     if (!string.IsNullOrEmpty(this.config.ClientId))
-     {
-         confidentialClientApplicationBuilder.WithClientId(this.config.ClientId);
-     }
-
-     var app = confidentialClientApplicationBuilder.Build();
-
-     string[] scopes = { "https://graph.microsoft.com/.default" };
-     var authenticationResult = await app.AcquireTokenForClient(scopes).ExecuteAsync();
-
-     return authenticationResult.AccessToken;
- }
-
-
-builder.Services.AddSingleton<GraphServiceClient>(pr => {
-    TokenHelper tokenHelper = new(graphSvcClientWrapperConfig);
-    var provider = new TokenProvider
-    {
-        Token = await tokenHelper.CreateJwtGraphAPITokenAsync()
-    };
-
-    var authenticationProvider = new BaseBearerTokenAuthenticationProvider(provider);
-    return new GraphServiceClient(authenticationProvider);
-});
 
 
