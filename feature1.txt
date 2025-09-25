@@ -1,9 +1,2 @@
-Dear Crew Team,
-We are pleased to invite you to our upcoming workshops in Munich, taking place from October 27th 9:00 to 30th 17:00.
-The main location will be:
-Berliner Straße 95, Munich
-The agenda will be clarified in the coming weeks, with a focus on our way of working, run and the roadmap for 2026 items.
-Please make sure to follow the agreed travel guidelines with Munich Re when planning your trip.
-We look forward to welcoming you on site and working together in person!
 
    33 // ... rest of your Program.cs
