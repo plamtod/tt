@@ -1,4 +1,5 @@
-  1. Azure Container Apps (ACA)
+npm install -g @github/copilot   
+1. Azure Container Apps (ACA)
 
   This is often the recommended and best-fit option for most new containerized functions.
 
