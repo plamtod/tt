@@ -1,4 +1,53 @@
-
+public class UnitOfWork : IUnitOfWork, IAsyncDisposable
+    2 {
+    3     private readonly YourDbContext _context;
+    4     private IDbContextTransaction _transaction;
+    5     private readonly bool _isReadOnly = false;
+    6
+    7     public UnitOfWork(YourDbContext context, IHttpContextAccessor httpContextAccessor)
+    8     {
+    9         _context = context;
+   10
+   11         var httpMethod = httpContextAccessor.HttpContext?.Request.Method;
+   12
+   13         // Define read-only methods
+   14         var readOnlyMethods = new HashSet<string> { "GET", "HEAD", "OPTIONS" };
+   15
+   16         if (httpMethod != null && readOnlyMethods.Contains(httpMethod,
+      StringComparer.OrdinalIgnoreCase))
+   17         {
+   18             _isReadOnly = true;
+   19         }
+   20
+   21         // IMPORTANT: Only begin a transaction if the request is NOT read-only.
+   22         if (!_isReadOnly)
+   23         {
+   24             _transaction = _context.Database.BeginTransaction();
+   25         }
+   26     }
+   27
+   28     public async Task CommitAsync()
+   29     {
+   30         // Only commit if there is a transaction to commit.
+   31         if (_transaction != null)
+   32         {
+   33             await _transaction.CommitAsync();
+   34         }
+   35     }
+   36
+   37     public async ValueTask DisposeAsync()
+   38     {
+   39         // Only rollback if there is a transaction to roll back.
+   40         if (_transaction != null)
+   41         {
+   42             await _transaction.RollbackAsync();
+   43             await _transaction.DisposeAsync();
+   44         }
+   45     }
+   46
+   47     // ... your repository properties would go here
+   48     // public IYourRepository YourRepository => new YourRepository(_context);
+   49 }
 2. The DataConnection
 
   First, create your custom DataConnection class. This allows you to configure it for dependency injection.
@@ -173,6 +222,7 @@
    22 }
 
 ---------------------
+
 
 
 
