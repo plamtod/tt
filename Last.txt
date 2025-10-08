@@ -1,1 +1,98 @@
+private DataConnectionTransaction _transaction;
+     9     private bool _isRootTransactionOwner;
+    10     private readonly ILogger<UnitOfWork> _logger;
+    11     private bool _committed = false;
+    12
+    13     public WorkflowDataConnection Connection { get; }
+    14
+    15     public UnitOfWork(WorkflowDataConnection connection, ILogger<UnitOfWork> logger)
+    16     {
+    17         Connection = connection;
+    18         _logger = logger;
+    19         // Constructor is now empty of transaction logic
+    20     }
 
+public async Task BeginTransactionAsync()
+    23     {
+    24         // This check makes the method idempotent (safe to call multiple times)
+    25         if (_transaction != null || (_isRootTransactionOwner && _transaction != null))
+    26         {
+    27             return;
+    28         }
+    29
+    30         if (Connection.Transaction == null)
+    31         {
+    32             _transaction = await Connection.BeginTransactionAsync();
+    33             _isRootTransactionOwner = true;
+    34             _logger.LogInformation("Root Unit of Work created. Beginning new transaction {TransactionHash}.", _transaction.GetHashCode());
+    35         }
+    36         else
+    37         {
+    38             _isRootTransactionOwner = false;
+    39             _logger.LogInformation("Nested Unit of Work created. Participating in existing transaction.");
+    40         }
+    41     }
+    42
+    43     public async Task<int> CommitAsync()
+    44     {
+    45         // If we are a nested UoW, we don't own the transaction. Mark as committed and exit.
+    46         if (!_isRootTransactionOwner)
+    47         {
+    48             _committed = true;
+    49             _logger.LogInformation("Nested Unit of Work 'commit' called. No action taken.");
+    50             return 0;
+    51         }
+    52
+    53         // If we are the root, but BeginTransactionAsync was never called, there's nothing to commit.
+    54         if (_transaction == null)
+    55         {
+    56             _logger.LogWarning("CommitAsync called, but transaction was never begun.");
+    57             return 0;
+    58         }
+    59
+    60         try
+    61         {
+    62             await _transaction.CommitAsync();
+    63             _committed = true;
+    64             _logger.LogInformation("Root Unit of Work committed transaction {TransactionHash}.", _transaction.GetHashCode());
+    65             return 1;
+    66         }
+    67         catch (Exception ex)
+    68         {
+    69             _logger.LogError(ex, "Transaction {TransactionHash} commit failed. Rolling back.", _transaction.GetHashCode());
+    70             await _transaction.RollbackAsync();
+    71             throw;
+    72         }
+    73     }
+    74
+    75     public async ValueTask DisposeAsync()
+    76     {
+    77         // Only the root owner is responsible for the transaction's lifecycle.
+    78         if (!_isRootTransactionOwner)
+    79         {
+    80             return;
+    81         }
+    82
+    83         // If the root owner's transaction was never started, there's nothing to dispose.
+    84         if (_transaction == null)
+    85         {
+    86             return;
+    87         }
+    88
+    89         // If the root transaction was started but not committed, it must be rolled back.
+    90         if (!_committed)
+    91         {
+    92             try
+    93             {
+    94                 _logger.LogWarning("Unit of Work disposed without explicit commit. Rolling back transaction {TransactionHash}.", _transaction.GetHashCode());
+    95                 await _transaction.RollbackAsync();
+    96             }
+    97             catch (Exception ex)
+    98             {
+    99                 _logger.LogError(ex, "An exception occurred during implicit rollback of transaction {TransactionHash}.", _transaction.GetHashCode());
+   100             }
+   101         }
+   102
+   103         // Finally, dispose the transaction object itself.
+   104         await _transaction.DisposeAsync();
+   105     }
