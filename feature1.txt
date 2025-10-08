@@ -1,3 +1,93 @@
- this.Connection.Transaction->DbTransaction
-_transaction -> DataConnectionTransaction
-   33 // ... rest of your Program.cs
+public sealed class UnitOfWork : IUnitOfWork
+    2 {
+    3     // This field will only be assigned if this instance is the root owner.
+    4     // It will be null in a nested UoW.
+    5     private readonly DataConnectionTransaction _transaction;
+    6
+    7     private readonly bool _isRootTransactionOwner;
+    8     private bool _committed = false;
+    9
+   10     public WorkflowDataConnection Connection { get; }
+   11
+   12     public UnitOfWork(WorkflowDataConnection connection)
+   13     {
+   14         Connection = connection;
+   15
+   16         if (Connection.Transaction == null)
+   17         {
+   18             // This is the root UoW. It creates and owns the transaction.
+   19             _transaction = Connection.BeginTransaction(); // Assign the field here.
+   20             _isRootTransactionOwner = true;
+   21         }
+   22         else
+   23         {
+   24             // A transaction already exists. This is a nested UoW.
+   25             // We do not assign _transaction; it remains null.
+   26             _isRootTransactionOwner = false;
+   27         }
+   28     }
+   29
+   30     public async Task<int> CommitAsync()
+   31     {
+   32         // The logic is driven by the ownership flag, not the _transaction field itself.
+   33         if (!_isRootTransactionOwner)
+   34         {
+   35             _committed = true;
+   36             return 0; // No-op for nested UoW.
+   37         }
+   38
+   39         // If we are the root owner, _transaction will not be null.
+   40         try
+   41         {
+   42             await _transaction.CommitAsync();
+   43             _committed = true;
+   44             return 1;
+   45         }
+   46         catch (Exception)
+   47         {
+   48             await _transaction.RollbackAsync();
+   49             throw;
+   50         }
+   51     }
+   52
+   53     public async ValueTask DisposeAsync()
+   54     {
+   55         // Only the root owner can roll back.
+   56         // If it is the root, _transaction will be non-null.
+   57         if (_isRootTransactionOwner && !_committed)
+   58         {
+   59             await _transaction.RollbackAsync();
+   60         }
+   61
+   62         // Only the root owner should dispose the transaction object it created.
+   63         if (_isRootTransactionOwner)
+   64         {
+   65             await _transaction.DisposeAsync();
+   66         }
+   67     }
+   68 }
+
+
+ using LinqToDB.Data;
+    2 using System;
+    3 using System.Threading.Tasks;
+    4
+    5 /// <summary>
+    6 /// Defines the contract for a Unit of Work, which manages transactions
+    7 /// and coordinates changes across multiple repositories.
+    8 /// </summary>
+    9 public interface IUnitOfWork : IAsyncDisposable
+   10 {
+   11     /// <summary>
+   12     /// Gets the shared, transactional database connection for this unit of work.
+   13     /// Repositories will use this connection to ensure they all participate in the same transaction.
+   14     /// </summary>
+   15     WorkflowDataConnection Connection { get; }
+   16
+   17     /// <summary>
+   18     /// Commits all changes made within this unit of work to the database.
+   19     /// If this is a nested unit of work, this operation is a no-op.
+   20     /// </summary>
+   21     /// <returns>A task that represents the asynchronous commit operation.</returns>
+   22     Task<int> CommitAsync();
+   23 }
