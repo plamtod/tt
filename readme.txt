@@ -1,4 +1,77 @@
- public interface IUnitOfWork : IAsyncDisposable
+public sealed class UnitOfWork : IUnitOfWork
+    2 {
+    3     private readonly DataConnectionTransaction _transaction;
+    4     private readonly bool _isRootTransactionOwner; // Flag to track ownership
+    5     private bool _committed = false;
+    6
+    7     public WorkflowDataConnection Connection { get; }
+    8
+    9     public UnitOfWork(WorkflowDataConnection connection)
+   10     {
+   11         Connection = connection;
+   12
+   13         // Check if a transaction is already active on this connection.
+   14         if (Connection.Transaction == null)
+   15         {
+   16             // No active transaction. This instance is the "root" and will create one.
+   17             _transaction = Connection.BeginTransaction();
+   18             _isRootTransactionOwner = true;
+   19         }
+   20         else
+   21         {
+   22             // A transaction already exists. This instance will participate but not own it.
+   23             _transaction = Connection.Transaction; // Get a reference to the existing transaction
+   24             _isRootTransactionOwner = false;
+   25         }
+   26     }
+   27
+   28     public async Task<int> CommitAsync()
+   29     {
+   30         // Only the root owner of the transaction can issue a commit.
+   31         if (!_isRootTransactionOwner)
+   32         {
+   33             // For a nested UoW, "committing" is a no-op. We just mark our own
+   34             // state as committed to prevent a rollback in our DisposeAsync.
+   35             _committed = true;
+   36             return 0;
+   37         }
+   38
+   39         // Original commit logic for the root UoW
+   40         try
+   41         {
+   42             await _transaction.CommitAsync();
+   43             _committed = true;
+   44             return 1;
+   45         }
+   46         catch (Exception)
+   47         {
+   48             // If commit fails, the root owner must roll back.
+   49             await _transaction.RollbackAsync();
+   50             throw;
+   51         }
+   52     }
+   53
+   54     public async ValueTask DisposeAsync()
+   55     {
+   56         // Only the root owner is responsible for rollback on disposal.
+   57         // A nested UoW failing should not roll back the entire parent transaction
+   58         // unless the exception propagates up and causes the root to fail.
+   59         if (_isRootTransactionOwner && !_committed)
+   60         {
+   61             await _transaction.RollbackAsync();
+   62         }
+   63
+   64         // The root owner is also the only one that should dispose the transaction object.
+   65         if (_isRootTransactionOwner)
+   66         {
+   67             await _transaction.DisposeAsync();
+   68         }
+   69         // We do not dispose the Connection, as it's managed by the DI container.
+   70     }
+   71 }
+
+//
+public interface IUnitOfWork : IAsyncDisposable
    4 {
    5     // Expose the connection so repositories can use it
    6     WorkflowDataConnection Connection { get; }
