@@ -1,126 +1,56 @@
+ public interface IUnitOfWork : IAsyncDisposable
+   4 {
+   5     // Expose the connection so repositories can use it
+   6     WorkflowDataConnection Connection { get; }
+   7
+   8     Task<int> CommitAsync();
+   9 }
 
-public class Repository<T>(
-    WorkflowDataConnection connection,
-    TelemetryHelper telemetryHelper) : IRepository<T> where T : class
-{
-    protected readonly WorkflowDataConnection connection = connection;
-    protected readonly TelemetryHelper telemetryHelper = telemetryHelper;
-
-    public virtual async Task<int> Save(T input, bool disableLogging = false)
-    {
-        try
-        {
-            var id = GetIdValue(input);
-            if (id <= 0)
-            {
-                return await this.connection.InsertAsync(input);
-            }
-            else
-            {
-                return await this.connection.UpdateAsync(input);
-            }
-        }
-        catch (Exception ex)
-        {
-            if (!disableLogging)
-            {
-                this.telemetryHelper.TelemetryClient.TrackTrace($"The CREW {nameof(T)} save failed.");
-                this.telemetryHelper.TelemetryClient.TrackException(ex);
-            }
-            throw;
-        }
-    }
-
-    public virtual async Task<int> SaveWithTransaction(T[] inputs)
-    {
-        var affectedRows = 0;
-        foreach (var item in inputs)
-        {
-            var id = GetIdValue(item);
-            if (id <= 0)
-            {
-                affectedRows += await this.connection.InsertAsync(item);
-            }
-            else
-            {
-                affectedRows += await this.connection.UpdateAsync(item);
-            }
-
-        }
-
-        return affectedRows;
-
-    }
-
-    public virtual async Task BulkInsertWithTransaction(T[] inputs)
-    {
-        using var transaction = await this.connection.BeginTransactionAsync();
-        try
-        {
-            await this.connection.BulkCopyAsync(inputs);
-            await transaction.CommitAsync();
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
-    }
-
-    public virtual async Task<int> Delete(T input, bool disableLogging = false)
-    {
-        try
-        {
-            return await this.connection.DeleteAsync(input);
-        }
-        catch (Exception ex)
-        {
-            if (!disableLogging)
-            {
-                this.telemetryHelper.TelemetryClient.TrackTrace($"The CREW {nameof(T)} delete failed.");
-                this.telemetryHelper.TelemetryClient.TrackException(ex);
-            }
-            throw;
-        }
-    }
-
-    public virtual IQueryable<T> Get() => this.connection.GetTable<T>();
-
-    public virtual async Task<int> Insert(T input, bool returnId = false, bool disableLogging = false)
-    {
-        try
-        {
-            if (returnId)
-            {
-                // returns record's identity value
-                return await this.connection.InsertWithInt32IdentityAsync(input);
-            }
-            else
-            {
-                // returns number of affected records
-                return await this.connection.InsertAsync(input);
-            }
-        }
-        catch (Exception ex)
-        {
-            if (!disableLogging)
-            {
-                this.telemetryHelper.TelemetryClient.TrackTrace($"The CREW {nameof(T)} insert failed.");
-                this.telemetryHelper.TelemetryClient.TrackException(ex);
-            }
-            throw;
-        }
-    }
-
-    private static int GetIdValue(T input)
-    {
-        var idProperty = input
-            .GetType()
-            .GetProperties()
-            .FirstOrDefault(p => p.CustomAttributes.Any(attr => attr.AttributeType == typeof(PrimaryKeyAttribute)));
-        return Convert.ToInt32(idProperty?.GetValue(input), CultureInfo.InvariantCulture);
-    }
-}
+ public sealed class UnitOfWork : IUnitOfWork
+    4 {
+    5     private readonly DataConnectionTransaction _transaction;
+    4     private bool _committed = false;
+    6     public WorkflowDataConnection Connection { get; }
+    9
+   10   
+   13
+   14     public UnitOfWork(YourLinq2DbSettings settings, TelemetryHelper telemetryHelper)
+   15     {
+   16        Connection = connection;
+   12         _transaction = Connection.BeginTransaction();
+   19         _telemetryHelper = telemetryHelper;
+   20     }
+   21
+   22     // Use lazy-loading to create repositories only when they are needed
+   23     public IUserRepository Users => _users ??= new UserRepository(_connection, _telemetryHelper);
+   24     public IOrderRepository Orders => _orders ??= new OrderRepository(_connection, _telemetryHelper);
+   25
+   26     public async Task<int> CommitAsync()
+   27     {
+   28         try
+   29         {
+   30             await _transaction.CommitAsync();
+   31             _committed = true;
+   32             return 1; // Or return number of affected rows if you track it
+   33         }
+   34         catch (Exception)
+   35         {
+   36             await _transaction.RollbackAsync();
+   37             throw;
+   38         }
+   39     }
+   40
+   41     public async ValueTask DisposeAsync()
+   42     {
+   43         // If the transaction was not committed, it will be rolled back upon disposal
+   44         if (!_committed)
+   45         {
+   46             await _transaction.RollbackAsync();
+   47         }
+   48         await _transaction.DisposeAsync();
+   49         await _connection.DisposeAsync();
+   50     }
+   51 }
 //////////
 docker run --name sql_2017 -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=1Secure*Password1" -e
      "MSSQL_PID=Enterprise" -p 1433:1433 -v "C:\DbFolder:/var/opt/mssql/data" -d
