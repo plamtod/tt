@@ -5,11 +5,12 @@ public sealed class UnitOfWork : IUnitOfWork
     5     private readonly DataConnectionTransaction _transaction;
     6
     7     private readonly bool _isRootTransactionOwner;
+          private readonly ILogger<UnitOfWork> _logger; // <-- Add logger field
     8     private bool _committed = false;
     9
    10     public WorkflowDataConnection Connection { get; }
    11
-   12     public UnitOfWork(WorkflowDataConnection connection)
+   12     public UnitOfWork(WorkflowDataConnection connection, ILogger<UnitOfWork> logger)
    13     {
    14         Connection = connection;
    15
@@ -18,12 +19,14 @@ public sealed class UnitOfWork : IUnitOfWork
    18             // This is the root UoW. It creates and owns the transaction.
    19             _transaction = Connection.BeginTransaction(); // Assign the field here.
    20             _isRootTransactionOwner = true;
+_logger.LogInformation("Root Unit of Work created. Beginning new transaction with hash {TransactionHash}.", _transaction.GetHashCode());
    21         }
    22         else
    23         {
    24             // A transaction already exists. This is a nested UoW.
    25             // We do not assign _transaction; it remains null.
    26             _isRootTransactionOwner = false;
+_logger.LogInformation("Nested Unit of Work created. Participating in existing transaction.");
    27         }
    28     }
    29
@@ -33,6 +36,7 @@ public sealed class UnitOfWork : IUnitOfWork
    33         if (!_isRootTransactionOwner)
    34         {
    35             _committed = true;
+ _logger.LogInformation("Nested Unit of Work 'commit' called. No action taken.");
    36             return 0; // No-op for nested UoW.
    37         }
    38
@@ -41,10 +45,12 @@ public sealed class UnitOfWork : IUnitOfWork
    41         {
    42             await _transaction.CommitAsync();
    43             _committed = true;
+_logger.LogInformation("Root Unit of Work committed transaction {TransactionHash}.", _transaction.GetHashCode());
    44             return 1;
    45         }
    46         catch (Exception)
    47         {
+ _logger.LogError(ex, "Transaction {TransactionHash} commit failed. Rolling back.", _transaction.GetHashCode());
    48             await _transaction.RollbackAsync();
    49             throw;
    50         }
@@ -56,7 +62,16 @@ public sealed class UnitOfWork : IUnitOfWork
    56         // If it is the root, _transaction will be non-null.
    57         if (_isRootTransactionOwner && !_committed)
    58         {
-   59             await _transaction.RollbackAsync();
+                   try
+   65             {
+   66                 // <-- Important logging for implicit rollbacks
+   67                 _logger.LogWarning("Unit of Work disposed without explicit commit. Rolling back transaction {TransactionHash}.", _transaction.GetHashCode());
+   68                 await _transaction.RollbackAsync();
+   69             }
+   70             catch (Exception ex)
+   71             {
+   72                 _logger.LogError(ex, "An exception occurred during implicit rollback of transaction {TransactionHash}.", _transaction.GetHashCode());
+   73             }
    60         }
    61
    62         // Only the root owner should dispose the transaction object it created.
