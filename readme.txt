@@ -1,3 +1,127 @@
+
+public class Repository<T>(
+    WorkflowDataConnection connection,
+    TelemetryHelper telemetryHelper) : IRepository<T> where T : class
+{
+    protected readonly WorkflowDataConnection connection = connection;
+    protected readonly TelemetryHelper telemetryHelper = telemetryHelper;
+
+    public virtual async Task<int> Save(T input, bool disableLogging = false)
+    {
+        try
+        {
+            var id = GetIdValue(input);
+            if (id <= 0)
+            {
+                return await this.connection.InsertAsync(input);
+            }
+            else
+            {
+                return await this.connection.UpdateAsync(input);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!disableLogging)
+            {
+                this.telemetryHelper.TelemetryClient.TrackTrace($"The CREW {nameof(T)} save failed.");
+                this.telemetryHelper.TelemetryClient.TrackException(ex);
+            }
+            throw;
+        }
+    }
+
+    public virtual async Task<int> SaveWithTransaction(T[] inputs)
+    {
+        var affectedRows = 0;
+        foreach (var item in inputs)
+        {
+            var id = GetIdValue(item);
+            if (id <= 0)
+            {
+                affectedRows += await this.connection.InsertAsync(item);
+            }
+            else
+            {
+                affectedRows += await this.connection.UpdateAsync(item);
+            }
+
+        }
+
+        return affectedRows;
+
+    }
+
+    public virtual async Task BulkInsertWithTransaction(T[] inputs)
+    {
+        using var transaction = await this.connection.BeginTransactionAsync();
+        try
+        {
+            await this.connection.BulkCopyAsync(inputs);
+            await transaction.CommitAsync();
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public virtual async Task<int> Delete(T input, bool disableLogging = false)
+    {
+        try
+        {
+            return await this.connection.DeleteAsync(input);
+        }
+        catch (Exception ex)
+        {
+            if (!disableLogging)
+            {
+                this.telemetryHelper.TelemetryClient.TrackTrace($"The CREW {nameof(T)} delete failed.");
+                this.telemetryHelper.TelemetryClient.TrackException(ex);
+            }
+            throw;
+        }
+    }
+
+    public virtual IQueryable<T> Get() => this.connection.GetTable<T>();
+
+    public virtual async Task<int> Insert(T input, bool returnId = false, bool disableLogging = false)
+    {
+        try
+        {
+            if (returnId)
+            {
+                // returns record's identity value
+                return await this.connection.InsertWithInt32IdentityAsync(input);
+            }
+            else
+            {
+                // returns number of affected records
+                return await this.connection.InsertAsync(input);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!disableLogging)
+            {
+                this.telemetryHelper.TelemetryClient.TrackTrace($"The CREW {nameof(T)} insert failed.");
+                this.telemetryHelper.TelemetryClient.TrackException(ex);
+            }
+            throw;
+        }
+    }
+
+    private static int GetIdValue(T input)
+    {
+        var idProperty = input
+            .GetType()
+            .GetProperties()
+            .FirstOrDefault(p => p.CustomAttributes.Any(attr => attr.AttributeType == typeof(PrimaryKeyAttribute)));
+        return Convert.ToInt32(idProperty?.GetValue(input), CultureInfo.InvariantCulture);
+    }
+}
+//////////
 docker run --name sql_2017 -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=1Secure*Password1" -e
      "MSSQL_PID=Enterprise" -p 1433:1433 -v "C:\DbFolder:/var/opt/mssql/data" -d
      mcr.microsoft.com/mssql/server:2017-latest
