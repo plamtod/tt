@@ -1,4 +1,4 @@
-public sealed class UnitOfWork : IUnitOfWork
+public sealed class UnitOfWork : IUnitOfWork - You are correct that the code could be made slightly shorter by removing the boolean flag. However, the code is clearer, more explicit, and safer with it.
     2 {
     3     private readonly DataConnectionTransaction _transaction;
     4     private readonly bool _isRootTransactionOwner; // Flag to track ownership
