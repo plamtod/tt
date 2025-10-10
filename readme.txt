@@ -1,3 +1,25 @@
+public async ValueTask DisposeAsync()
+        {
+            // The dispose logic is primarily concerned with the root owner's responsibility
+            // and doesn't need to change. If _begun is false, _isRootTransactionOwner
+            // will also be false, so this logic is already safe.
+            if (!_isRootTransactionOwner || _transaction == null) return;
+   
+            if (!_committed)
+            {
+                try
+                {
+                    _logger.LogWarning("Root UoW: Disposed without commit. Rolling back transaction {Hash}.", _transaction.GetHashCode());
+                    await _transaction.RollbackAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Root UoW: Exception during implicit rollback of transaction {Hash}.", _transaction.GetHashCode());
+                }
+            }
+            await _transaction.DisposeAsync();
+        }
+
 public sealed class UnitOfWork : IUnitOfWork - You are correct that the code could be made slightly shorter by removing the boolean flag. However, the code is clearer, more explicit, and safer with it.
     2 {
     3     private readonly DataConnectionTransaction _transaction;
