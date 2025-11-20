@@ -1,3 +1,46 @@
+
+public static class FullTextExtensions
+{
+    private static readonly HashSet<char> InvalidSymbols = new()
+    {
+         '{', '}', '*',  '%'
+    };
+
+    public static string EscapeFullTextInput(this string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
+
+        var span = input.AsSpan();
+        var buffer = new char[span.Length * 2];
+        var idx = 0;
+
+        foreach (var ch in span)
+        {
+            if (InvalidSymbols.Contains(ch))
+            {
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                buffer[idx++] = '"';
+                buffer[idx++] = '"';
+            }
+            else
+            {
+                buffer[idx++] = ch;
+            }
+        }
+
+        var fixedInput = new string(buffer, 0, idx).Trim();
+
+        return fixedInput;
+    }
+}
+/
 private DataConnectionTransaction _transaction;
      9     private bool _isRootTransactionOwner;
     10     private readonly ILogger<UnitOfWork> _logger;
