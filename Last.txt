@@ -1,4 +1,4 @@
-
+string of characters like '"|}{_' or ',=)(&%$"'
 public static class FullTextExtensions
 {
     private static readonly HashSet<char> InvalidSymbols = new()
