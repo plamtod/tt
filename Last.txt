@@ -1,3 +1,15 @@
+може ли да пратиш съобщение в тийм на следния потребител: abaucisca@munichre.com
+ 
+My colleague needs an password reset:
+nyId: ny4011630
+email: evgeni.yovchev@acuityanalytics.com
+ 
+ 
+name: Evgeni Yovchev
+ 
+phone: +359883364296
+ 
+
 string of characters like '"|}{_' or ',=)(&%$"'
 public static class FullTextExtensions
 {
