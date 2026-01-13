@@ -1,0 +1,18 @@
+
+{
+  "manifest_version": 3,
+  "name": "Mute All Audible Tabs",
+  "version": "1.0.0",
+  "description": "Finds all tabs that are playing audio and mutes them with one click.",
+  "permissions": ["tabs", "contextMenus"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Mute all audible tabs",
+    "default_icon": {
+      "32": "icon-32.png",
+      "128": "icon-128.png"
+    }
+  }
+}
