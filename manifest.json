@@ -1,18 +1,30 @@
 
 {
   "manifest_version": 3,
-  "name": "Mute All Audible Tabs",
-  "version": "1.0.0",
-  "description": "Finds all tabs that are playing audio and mutes them with one click.",
-  "permissions": ["tabs", "contextMenus"],
+  "name": "Pause & Mute All Media (Edge)",
+  "version": "1.1.0",
+  "description": "One click to pause and mute all tabs; another to resume and unmute.",
+  "permissions": ["tabs", "scripting", "contextMenus"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Mute all audible tabs",
+    "default_title": "Pause & mute all media",
     "default_icon": {
       "32": "icon-32.png",
       "128": "icon-128.png"
     }
+  },
+  "commands": {
+    "pause-mute-all": {
+      "suggested_key": { "default": "Ctrl+Shift+M" },
+      "description": "Pause & mute all tabs"
+    },
+    "resume-unmute-all": {
+      "suggested_key": { "default": "Ctrl+Shift+R" },
+      "description": "Resume & unmute all tabs"
+    }
   }
 }
+``
