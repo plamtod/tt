@@ -1,0 +1,21 @@
+[Collection("FunctionApp")]
+public class AzureAdSyncFunctionTests(FunctionAppFixture functionAppFixture)
+{
+    private readonly FunctionAppFixture functionAppFixture = functionAppFixture;
+
+    [Fact]
+    public async Task AzureAdSync_ShouldPass()
+    {
+        // Arrange
+        var sut = ActivatorUtilities.CreateInstance<AzureAdSyncFunction>(this.functionAppFixture.ServiceProvider);
+
+        var context = Substitute.For<FunctionContext>();
+        var request = Substitute.For<HttpRequestData>(context);
+
+        // Act
+        var ex = await Record.ExceptionAsync(() => sut.Run(request, context));
+
+        // Assert
+        Assert.Null(ex);
+    }
+}
